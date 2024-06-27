@@ -1,0 +1,43 @@
+name: Publish GeoLite2 Mirror
+on:
+  repository_dispatch:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 22 * * 2,5
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+    - name: Download GeoLite.mmdb
+      run: |
+        wget -nv -O GeoLite2-ASN.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-ASN&license_key=${{ secrets.MAXMIND_KEY }}&suffix=tar.gz"
+        wget -nv -O GeoLite2-City.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=${{ secrets.MAXMIND_KEY }}&suffix=tar.gz"
+        wget -nv -O GeoLite2-Country.tar.gz "https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-Country&license_key=${{ secrets.MAXMIND_KEY }}&suffix=tar.gz"
+        tar -xzf GeoLite2-ASN.tar.gz
+        tar -xzf GeoLite2-City.tar.gz
+        tar -xzf GeoLite2-Country.tar.gz
+        mkdir -p upload
+        cp -v GeoLite*/*.mmdb upload
+        cp -v GeoLite2-*.tar.gz upload
+    - name: Prepare ENV variables
+      run: |
+        TAG_DATE=$(ls -d GeoLite2-ASN_* | awk -F '_' '{print $2}')
+        echo "TAG_DATE=$TAG_DATE" >> $GITHUB_ENV
+        cat $GITHUB_ENV > "Geolite2-${TAG_DATE}"
+    - name: Upload to Releases
+      uses: softprops/action-gh-release@v0.1.15
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
+      with:
+        name: Maxmind Geolite2 ${{ env.TAG_DATE }}
+        tag_name: ${{ env.TAG_DATE }}
+        body: Maxmind Geolite2 database from ${{ env.TAG_DATE }}
+        token: ${{ secrets.GITHUB_TOKEN  }}
+        files: |
+          upload/*.mmdb
+          upload/GeoLite2-ASN.tar.gz
+          upload/GeoLite2-Country.tar.gz
+          upload/GeoLite2-City.tar.gz
